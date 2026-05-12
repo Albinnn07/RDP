@@ -1,5 +1,5 @@
 # ==========================================
-# STABLE UBUNTU DESKTOP FOR RENDER (GPG FIX)
+# RENDER-OPTIMIZED UBUNTU DESKTOP
 # ==========================================
 FROM dorowu/ubuntu-desktop-lxde-vnc:latest
 
@@ -7,10 +7,10 @@ FROM dorowu/ubuntu-desktop-lxde-vnc:latest
 ENV VNC_PASSWORD=ubuntu \
     USER=ubuntu \
     PASSWORD=ubuntu \
-    PORT=6080
+    PORT=6080 \
+    HOME=/home/ubuntu
 
 # 2. Fix GPG Error and Install Alist
-# We remove the broken chrome list so apt-get update doesn't fail
 RUN rm -f /etc/apt/sources.list.d/google-chrome.list && \
     apt-get update && \
     apt-get install -y curl ca-certificates && \
@@ -19,14 +19,24 @@ RUN rm -f /etc/apt/sources.list.d/google-chrome.list && \
 # 3. Port Mapping
 EXPOSE 6080
 
-# 4. ENTRYPOINT
+# 4. CUSTOM MANUAL ENTRYPOINT
+# This manually starts the X server and VNC to avoid Supervisor PermissionErrors
 RUN echo '#!/bin/bash\n\
-echo "🚀 Initializing Render VM Environment..."\n\
+echo "🚀 Starting Alist..."\n\
 /opt/alist/alist server &\n\
-echo "✅ Alist started in background"\n\
 \n\
-echo "🖥️ Starting Desktop Environment..."\n\
-/startup.sh' > /render-entrypoint.sh && \
+echo "🖥️ Starting Xvfb and LXDE..."\n\
+# Initialize X-Server\n\
+Xvfb :1 -screen 0 1920x1080x16 &\n\
+export DISPLAY=:1\n\
+\n\
+# Start LXDE Desktop Components manually\n\
+lxsession -s LXDE -e LXDE &\n\
+\n\
+echo "🌐 Starting Web VNC on Port 6080..."\n\
+# Start VNC Server and Web Proxy\n\
+x11vnc -display :1 -nopw -listen localhost -xkb -forever &\n\
+/usr/share/novnc/utils/launch.sh --vnc localhost:5900 --listen 6080' > /render-entrypoint.sh && \
 chmod +x /render-entrypoint.sh
 
 # 5. Persistence
